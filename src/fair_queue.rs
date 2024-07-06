@@ -89,7 +89,7 @@ where
     S: Stream<Item = T> + Send,
     K: Eq + Hash + Unpin + Clone + Send + Sync,
 {
-    type Item = (K, T);
+    type Item = (K, Option<T>);
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let fair_queue = self.get_mut();
@@ -121,7 +121,7 @@ where
             let mut cx = Context::from_waker(&waker_ref);
             match io_stream.as_mut().poll_next(&mut cx) {
                 Poll::Ready(Some(res)) => {
-                    let item = Some((event.key.clone(), res));
+                    let item = Some((event.key.clone(), Some(res)));
                     let mut inner = fair_queue.inner.lock();
                     let priority = inner.counter.fetch_add(1, atomic::Ordering::Relaxed);
                     inner.ready_queue.push(ReadyEvent {
@@ -131,7 +131,7 @@ where
                     inner.streams.insert(event.key, io_stream);
                     return Poll::Ready(item);
                 }
-                Poll::Ready(None) => continue,
+                Poll::Ready(None) => return Poll::Ready(Some((event.key.clone(), None))),
                 Poll::Pending => {
                     let mut inner = fair_queue.inner.lock();
                     inner.streams.insert(event.key, io_stream);
@@ -188,15 +188,18 @@ mod test {
         assert_eq!(
             results,
             vec![
-                (1, "a1"),
-                (2, "b1"),
-                (3, "c1"),
-                (1, "a2"),
-                (2, "b2"),
-                (3, "c2"),
-                (1, "a3"),
-                (2, "b3"),
-                (3, "c3")
+                (1, Some("a1")),
+                (2, Some("b1")),
+                (3, Some("c1")),
+                (1, Some("a2")),
+                (2, Some("b2")),
+                (3, Some("c2")),
+                (1, Some("a3")),
+                (2, Some("b3")),
+                (3, Some("c3")),
+                (1, None),
+                (2, None),
+                (3, None)
             ]
         );
     }
@@ -223,12 +226,15 @@ mod test {
         assert_eq!(
             results,
             vec![
-                (1, "a1"),
-                (2, "b1"),
-                (3, "c1"),
-                (1, "a2"),
-                (3, "c2"),
-                (1, "a3")
+                (1, Some("a1")),
+                (2, Some("b1")),
+                (3, Some("c1")),
+                (1, Some("a2")),
+                (2, None),
+                (3, Some("c2")),
+                (1, Some("a3")),
+                (3, None),
+                (1, None)
             ]
         );
     }

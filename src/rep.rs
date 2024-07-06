@@ -147,7 +147,7 @@ impl SocketRecv for RepSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(message))) => match message {
+                Some((peer_id, Some(Ok(message)))) => match message {
                     Message::Message(mut m) => {
                         assert!(m.len() > 1);
                         let mut at = 1;
@@ -165,6 +165,9 @@ impl SocketRecv for RepSocket {
                     }
                     _ => todo!(),
                 },
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
+                }
                 Some((_peer_id, _)) => todo!(),
                 None => return Err(ZmqError::NoMessage),
             };

@@ -63,8 +63,11 @@ impl SocketRecv for DealerSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
+                }
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
                 }
                 Some((_peer_id, _)) => todo!(),
                 None => todo!(),

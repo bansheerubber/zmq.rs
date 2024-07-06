@@ -64,12 +64,15 @@ impl SocketRecv for RouterSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(Message::Message(mut message)))) => {
+                Some((peer_id, Some(Ok(Message::Message(mut message))))) => {
                     message.push_front(peer_id.into());
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(msg))) => todo!("Unimplemented message: {:?}", msg),
-                Some((peer_id, Err(_))) => {
+                Some((_peer_id, Some(Ok(msg)))) => todo!("Unimplemented message: {:?}", msg),
+                Some((peer_id, Some(Err(_)))) => {
+                    self.backend.peer_disconnected(&peer_id);
+                }
+                Some((peer_id, None)) => {
                     self.backend.peer_disconnected(&peer_id);
                 }
                 None => todo!(),

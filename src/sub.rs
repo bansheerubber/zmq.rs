@@ -188,13 +188,14 @@ impl SocketRecv for SubSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(msg))) => todo!("Unimplemented message: {:?}", msg),
-                Some((peer_id, Err(_))) => {
+                Some((_peer_id, Some(Ok(msg)))) => todo!("Unimplemented message: {:?}", msg),
+                Some((peer_id, Some(Err(_)))) => {
                     self.backend.peer_disconnected(&peer_id);
                 }
+                Some((_peer_id, None)) => {}
                 None => todo!(),
             }
         }
