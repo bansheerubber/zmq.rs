@@ -185,6 +185,7 @@ impl SocketRecv for RepSocket {
                 }
                 Some((peer_id, None)) => {
                     self.backend.peer_disconnected(&peer_id);
+                    return Err(ZmqError::Socket("Disconnected"));
                 }
                 None => {
                     return Err(ZmqError::NoMessage);
