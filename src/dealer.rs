@@ -72,13 +72,16 @@ impl SocketRecv for DealerSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_))) => {
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
+                }
+                Some((_peer_id, Some(Ok(_)))) => {
                     // Ignore non-message frames
                 }
-                Some((_peer_id, Err(e))) => {
+                Some((_peer_id, Some(Err(e)))) => {
                     // Handle potential errors from the fair queue
                     return Err(e.into());
                 }
@@ -180,12 +183,15 @@ impl SocketRecv for DealerRecvHalf {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_))) => {}
-                Some((_peer_id, Err(e))) => {
+                Some((_peer_id, Some(Ok(_)))) => {}
+                Some((_peer_id, Some(Err(e)))) => {
                     return Err(e.into());
+                }
+                Some((peer_id, None)) => {
+                    self._inner.backend.peer_disconnected(&peer_id);
                 }
                 None => {
                     return Err(ZmqError::NoMessage);

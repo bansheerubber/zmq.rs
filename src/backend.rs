@@ -319,6 +319,10 @@ impl MultiPeerBackend for GenericSocketBackend {
     }
 
     fn peer_disconnected(&self, peer_id: &PeerIdentity) {
+        if let Some(monitor) = self.monitor().lock().as_mut() {
+            let _ = monitor.try_send(SocketEvent::Disconnected(peer_id.clone()));
+        }
+
         self.peers.remove_sync(peer_id);
         self.refresh_single_peer_cache();
         match &self.fair_queue_inner {

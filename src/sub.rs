@@ -115,18 +115,19 @@ impl SocketRecv for SubSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_msg))) => {
+                Some((_peer_id, Some(Ok(_msg)))) => {
                     // Ignore non-message frames. SUB sockets are designed to only receive actual messages,
                     // not internal protocol frames like commands or greetings.
                 }
-                Some((peer_id, Err(e))) => {
+                Some((peer_id, Some(Err(e)))) => {
                     self.backend.peer_disconnected(&peer_id);
                     // Handle potential errors from the fair queue
                     return Err(e.into());
                 }
+                Some((_peer_id, None)) => {}
                 None => {
                     // The fair queue is empty, which shouldn't happen in normal operation
                     // this can happen if the peer disconnects while we are polling

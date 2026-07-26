@@ -157,7 +157,7 @@ impl SocketRecv for RepSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(message))) => match message {
+                Some((peer_id, Some(Ok(message)))) => match message {
                     Message::Message(mut m) => {
                         if m.len() < 2 {
                             return Err(ZmqError::Other("Invalid message format"));
@@ -179,9 +179,12 @@ impl SocketRecv for RepSocket {
                         // Ignore non-message frames. REP sockets should only process actual messages.
                     }
                 },
-                Some((peer_id, Err(e))) => {
+                Some((peer_id, Some(Err(e)))) => {
                     self.backend.peer_disconnected(&peer_id);
                     return Err(e.into());
+                }
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
                 }
                 None => {
                     return Err(ZmqError::NoMessage);

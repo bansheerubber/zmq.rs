@@ -73,19 +73,22 @@ impl SocketRecv for RouterSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(Message::Message(mut message)))) => {
+                Some((peer_id, Some(Ok(Message::Message(mut message))))) => {
                     message.push_front(peer_id.into());
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_msg))) => {
+                Some((_peer_id, Some(Ok(_msg)))) => {
                     // todo: Log or handle other message types if needed
                     // We could take an approach of using `tracing` and have that be an optional feature
                     // tracing::warn!("Received unimplemented message type: {:?}", msg);
                 }
-                Some((peer_id, Err(_e))) => {
+                Some((peer_id, Some(Err(_e)))) => {
                     self.backend.peer_disconnected(&peer_id);
                     // We could take an approach of using `tracing` and have that be an optional feature
                     // tracing::error!("Error receiving message from peer {}: {:?}", peer_id, e);
+                }
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
                 }
                 None => {
                     // The fair queue is empty, which shouldn't happen in normal operation
@@ -188,12 +191,15 @@ impl SocketRecv for RouterRecvHalf {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(Message::Message(mut message)))) => {
+                Some((peer_id, Some(Ok(Message::Message(mut message))))) => {
                     message.push_front(peer_id.into());
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_))) => {}
-                Some((peer_id, Err(_e))) => {
+                Some((_peer_id, Some(Ok(_)))) => {}
+                Some((peer_id, Some(Err(_e)))) => {
+                    self.inner.backend.peer_disconnected(&peer_id);
+                }
+                Some((peer_id, None)) => {
                     self.inner.backend.peer_disconnected(&peer_id);
                 }
                 None => {

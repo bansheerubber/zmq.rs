@@ -67,16 +67,19 @@ impl SocketRecv for PullSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((_peer_id, Ok(Message::Message(message)))) => {
+                Some((_peer_id, Some(Ok(Message::Message(message))))) => {
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_msg))) => {
+                Some((_peer_id, Some(Ok(_msg)))) => {
                     // Ignore non-message frames (Command, Greeting) as PULL sockets are designed to only receive actual messages, not internal protocol frames.
                 }
-                Some((peer_id, Err(e))) => {
+                Some((peer_id, Some(Err(e)))) => {
                     self.backend.peer_disconnected(&peer_id);
                     // Handle potential errors from the fair queue
                     return Err(e.into());
+                }
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
                 }
                 None => {
                     // The fair queue is empty, which shouldn't happen in normal operation

@@ -182,19 +182,22 @@ impl SocketRecv for XPubSocket {
     async fn recv(&mut self) -> ZmqResult<ZmqMessage> {
         loop {
             match self.fair_queue.next().await {
-                Some((peer_id, Ok(Message::Message(message)))) => {
+                Some((peer_id, Some(Ok(Message::Message(message))))) => {
                     // Process the subscription message internally to update tracking
                     self.backend
                         .message_received(&peer_id, Message::Message(message.clone()));
                     // Also expose it to the application
                     return Ok(message);
                 }
-                Some((_peer_id, Ok(_msg))) => {
+                Some((_peer_id, Some(Ok(_msg)))) => {
                     // Ignore non-message frames
                 }
-                Some((peer_id, Err(e))) => {
+                Some((peer_id, Some(Err(e)))) => {
                     self.backend.peer_disconnected(&peer_id);
                     return Err(e.into());
+                }
+                Some((peer_id, None)) => {
+                    self.backend.peer_disconnected(&peer_id);
                 }
                 None => {
                     return Err(ZmqError::NoMessage);

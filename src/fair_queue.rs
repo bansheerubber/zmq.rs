@@ -113,7 +113,7 @@ where
     S: Stream<Item = T> + Send + 'static,
     K: Eq + Hash + Unpin + Clone + Send + Sync + 'static,
 {
-    type Item = (K, T);
+    type Item = (K, Option<T>);
 
     #[allow(clippy::needless_continue)]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -155,7 +155,7 @@ where
             match io_stream.as_mut().poll_next(&mut cx) {
                 Poll::Ready(Some(res)) => {
                     let key = event.key.clone();
-                    let item = Some((key.clone(), res));
+                    let item = Some((key.clone(), Some(res)));
                     let mut inner = fair_queue.inner.lock();
                     inner.streams.insert(event.key, io_stream);
                     inner.push_ready(key);
@@ -173,8 +173,8 @@ where
                     if let Some(callback) = callback {
                         callback(event.key.clone());
                     }
-                    // Continue to poll other streams instead of returning None immediately.
-                    continue;
+
+                    return Poll::Ready(Some((event.key.clone(), None)));
                 }
                 Poll::Pending => {
                     let mut inner = fair_queue.inner.lock();
@@ -366,15 +366,18 @@ mod test {
         assert_eq!(
             results,
             vec![
-                (1, "a1"),
-                (2, "b1"),
-                (3, "c1"),
-                (1, "a2"),
-                (2, "b2"),
-                (3, "c2"),
-                (1, "a3"),
-                (2, "b3"),
-                (3, "c3")
+                (1, Some("a1")),
+                (2, Some("b1")),
+                (3, Some("c1")),
+                (1, Some("a2")),
+                (2, Some("b2")),
+                (3, Some("c2")),
+                (1, Some("a3")),
+                (2, Some("b3")),
+                (3, Some("c3")),
+                (1, None),
+                (2, None),
+                (3, None)
             ]
         );
     }
@@ -432,12 +435,15 @@ mod test {
         assert_eq!(
             results,
             vec![
-                (1, "a1"),
-                (2, "b1"),
-                (3, "c1"),
-                (1, "a2"),
-                (3, "c2"),
-                (1, "a3")
+                (1, Some("a1")),
+                (2, Some("b1")),
+                (3, Some("c1")),
+                (1, Some("a2")),
+                (2, None),
+                (3, Some("c2")),
+                (1, Some("a3")),
+                (3, None),
+                (1, None)
             ]
         );
     }
